@@ -36,15 +36,19 @@ def evalIMG(individual, inputData, pset):
     error = 0
     for x in range(imageW):
         for y in range(imageH):
+            # Multiplier to give more weight to the center of the image
             multiplier = (1 - abs((x / (imageW / 2)) - 1)) + (1 - abs((y / (imageH / 2)) - 1))
             try:
+                # Calculate the error
                 error += sum(((func((x / (imageW / 2)) - 1, (y / (imageH / 2)) - 1).getColour() - inputData[x][
                     y]) ** 2) * multiplier).astype(np.float64)
             except (ValueError, OverflowError, ZeroDivisionError):
                 error += 999999999
+    # Return the error rate
     return error / (imageW * imageH),
 
 
+# Function to divide two numbers, with a special case for division by 0
 def protectedDiv(left, right):
     try:
         return left / right
@@ -52,6 +56,7 @@ def protectedDiv(left, right):
         return 1
 
 
+# Function to log the value of x, with special cases for 0 and negative numbers
 def protectedLog(x):
     if x == 0:
         return 0
@@ -61,30 +66,34 @@ def protectedLog(x):
         return math.log(x)
 
 
+# Function to convert RGB values to a Colour object
 def toColour(r, g, b):
     return Colour(r, g, b)
 
 
+# Function to return the max of two numbers
 def gt(a, b):
     if (a > b):
         return a
     else:
         return b
 
-
+# Function to return the min of two numbers
 def lt(a, b):
     if (a < b):
         return a
     else:
         return b
 
-
+# Function to return the square of a number
 def exp(a):
     return math.pow(a, 2)
 
+# Function to return the noise value at a given point
 def noise(x, y, octaves=5, persistence=0.45, lacunarity=2.0):
     return pnoise2((x/2)+0.5, (y/2)+0.5, octaves=octaves, persistence=persistence, lacunarity=lacunarity)
 
+# Function to return the noise value at a given point
 def noise2(x, y, octaves, persistence, lacunarity):
     # clamp 0 < octaves <= 12
     # clamp 0 <= persistence <= 1
@@ -98,12 +107,15 @@ creator.create("FitnessMin", base.Fitness, weights=(-1.0,))  # create a fitness 
 creator.create("Individual", gp.PrimitiveTree,
                fitness=creator.FitnessMin)  # create an individual class that is a primitive tree with a fitness attribute
 
+# Function to run the EA
 def runEa(seed=7246325, popSize=700, mode="notSeeded", seedArr=[], migFreq=0, migQuant=0, numPops=1, pool=None, ngen=80, elitism=True, verbose=True):
+    # Set the seed for the random number generator
     random.seed(seed)
     np.random.seed(seed)
 
-
+    # Create the toolbox
     toolboxes = []
+    # Populate the toolbox
     for i in range(numPops):
         toolboxes.append(base.Toolbox())
     ##RUN
@@ -112,6 +124,7 @@ def runEa(seed=7246325, popSize=700, mode="notSeeded", seedArr=[], migFreq=0, mi
     hofs = []
     cxpbs = []
     mutpbs = []
+    # Add the necessary operators to the toolbox
     for i in range(numPops):
         psets.append(gp.PrimitiveSetTyped("main", [float, float], Colour))
         psets[i].addPrimitive(operator.add, [float, float], float)
@@ -148,13 +161,16 @@ def runEa(seed=7246325, popSize=700, mode="notSeeded", seedArr=[], migFreq=0, mi
         if pool is not None:
             toolboxes[i].register("map", pool.map)
         pops.append(toolboxes[i].population(n=popSize))
+        # If the mode is seeded, seed the population with the best individuals from previous seeded runs
         if mode == "seeded":
             for j in range(len(seedArr)):
                 pops[i][j] = seedArr[j]
+
         hofs.append(tools.HallOfFame(3))
         cxpbs.append(0.95)
         mutpbs.append(0.35)
 
+    # Init stats
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values[0])
     stats_size = tools.Statistics(len)
     mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
@@ -164,11 +180,14 @@ def runEa(seed=7246325, popSize=700, mode="notSeeded", seedArr=[], migFreq=0, mi
     mstats.register("min", np.min)
     mstats.register("max", np.max)
 
+    # Run the EA
     pops, log = algorithms.eaSimple(pops, toolboxes, cxpbs=cxpbs, mutpbs=mutpbs, ngen=ngen, stats=mstats,
                                     halloffames=hofs, verbose=verbose, elitism=elitism, k=migFreq)
     return pops, hofs, mstats, toolboxes, log
 
+# Main function
 if __name__ == "__main__":
+    # Set the seed
     random.seed(7246325)
     startTime = time.time()
     manager = multiprocessing.Manager()
@@ -192,8 +211,10 @@ if __name__ == "__main__":
             unseededTracker = -1
             seededTracker = -1
             seededBest = float(99999999)
+            # Run the EA 10 times
             for i in range(1, 11):
                 print(f"Run {i}/10")
+                # Data for the run
                 pops, hofs, mstats, toolboxes, logs = runEa(pool=pool, seed=i, popSize=700, ngen=110, elitism=True)
                 log = logs[0].chapters.get("fitness") 
                 mins.append(log.select("min"))
@@ -202,15 +223,18 @@ if __name__ == "__main__":
                 toolbox = toolboxes[0]
                 bests.append(hofs[0][0])
                 order.append(hofs[0][0].fitness.values[0])
+                # Check if unseeded best and update the hofs
                 if type(unseededBest) == float:
                     unseededBest = hofs[0][0]
                     unseededTracker = i
+                # If the current best is better than the previous best, update the best
                 elif hofs[0][0].fitness.values[0] < unseededBest.fitness.values[0]:
                     unseededBest = hofs[0][0]
                     unseededTracker = i
                 best = hofs[0][0]
                 func = toolbox.compile(expr=best)
                 outputData = np.zeros((imageW, imageH, 3), dtype=np.uint8)
+                # Compute output data for the image
                 for x in range(imageW):
                     for y in range(imageH):
                         outputData[x][y] = func((x / (imageW / 2)) - 1, (y / (imageH / 2)) - 1).getColour()
@@ -218,12 +242,15 @@ if __name__ == "__main__":
                 bigImageX = 2048
                 bigImageY = 2048
                 bigImage = np.zeros((bigImageX, bigImageY, 3), dtype=np.uint8)
+                # Compute big image (larger resolution)
                 for x in range(bigImageX):
                     for y in range(bigImageY):
                         bigImage[x][y] = func((x / (bigImageX / 2)) - 1, (y / (bigImageY / 2)) - 1).getColour()
                 ptnp.saveImage(bigImage, f'outputs/unseeded/bigOutputRun{i}.png')
                 print(toInfix.functional_to_infix(toInfix.parse_functional_expression(str(hofs[0][0]))))
                 print(hofs[0][0].fitness.values[0])
+
+            # More data collection
             avgMins = [np.mean([mins[j][i] for j in range(len(mins))]) for i in range(len(mins[0]))]
             avgMeds = [np.mean([meds[j][i] for j in range(len(meds))]) for i in range(len(meds[0]))]
             avgAvgs = [np.mean([avgs[j][i] for j in range(len(avgs))]) for i in range(len(avgs[0]))]
@@ -258,10 +285,12 @@ if __name__ == "__main__":
             avgs = []
             seededBests = []
             print("Seeded Runs:")
+            # Run the EA 10 times
             for i in range(1, 11):
                 print(f"Run {i}/10")
                 random.shuffle(bests)
                 seedArr = bests[:10]
+                # Data for the run
                 pops, hofs, mstats, toolboxes, logs = runEa(pool=pool, seed=7246325, popSize=700, ngen=110, mode="seeded", seedArr=seedArr, elitism=True)
                 log = logs[0].chapters.get("fitness")
                 mins.append(log.select("min"))
@@ -271,6 +300,7 @@ if __name__ == "__main__":
                 best = hofs[0][0]
                 seededBests.append(best)
                 order.append(hofs[0][0].fitness.values[0])
+                # Check if seeded best and update the hofs
                 if type(seededBest) == float:
                     seededBest = hofs[0][0]
                     seededTracker = i
@@ -279,6 +309,7 @@ if __name__ == "__main__":
                     seededTracker = i
                 func = toolbox.compile(expr=best)
                 outputData = np.zeros((imageW, imageH, 3), dtype=np.uint8)
+                # Compute output data for the image
                 for x in range(imageW):
                     for y in range(imageH):
                         outputData[x][y] = func((x / (imageW / 2)) - 1, (y / (imageH / 2)) - 1).getColour()
@@ -286,6 +317,7 @@ if __name__ == "__main__":
                 bigImageX = 2048
                 bigImageY = 2048
                 bigImage = np.zeros((bigImageX, bigImageY, 3), dtype=np.uint8)
+                # Compute big image (larger resolution)
                 for x in range(bigImageX):
                     for y in range(bigImageY):
                         bigImage[x][y] = func((x / (bigImageX / 2)) - 1, (y / (bigImageY / 2)) - 1).getColour()
@@ -293,6 +325,8 @@ if __name__ == "__main__":
 
             print(toInfix.functional_to_infix(toInfix.parse_functional_expression(str(hofs[0][0]))))
             print(hofs[0][0].fitness.values[0])
+
+            # More data collection
             avgMins = [np.mean([mins[j][i] for j in range(len(mins))]) for i in range(len(mins[0]))]
             avgMeds = [np.mean([meds[j][i] for j in range(len(meds))]) for i in range(len(meds[0]))]
             avgAvgs = [np.mean([avgs[j][i] for j in range(len(avgs))]) for i in range(len(avgs[0]))]
